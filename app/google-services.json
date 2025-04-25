@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1022403098514",
+    "project_id": "hiemapp",
+    "storage_bucket": "hiemapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1022403098514:android:36acb3f2f7c0fa1924734b",
+        "android_client_info": {
+          "package_name": "com.example.hiemapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1022403098514-9j91puqit7bpe2bkg3qoua2k70p5v8kb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.hiemapp",
+            "certificate_hash": "56668d1035ac03cb8ce736089e0093e24b7c4531"
+          }
+        },
+        {
+          "client_id": "1022403098514-4ejfcsmd8g0npt6v9apl3beu9j5n4k4p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_w2pYJWMeybfQ7Etb002GZ8aqL6AvT7k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1022403098514-4ejfcsmd8g0npt6v9apl3beu9j5n4k4p.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
