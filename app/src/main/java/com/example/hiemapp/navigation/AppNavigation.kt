@@ -29,12 +29,13 @@ import com.example.hiemapp.R // <- Import R để lấy string resource
 import com.example.hiemapp.ui.auth.AuthViewModel // <- Import ViewModel
 import com.example.hiemapp.ui.auth.LoginScreen // <- Import LoginScreen
 import com.example.hiemapp.ui.auth.RegistrationScreen // <- Import RegistrationScreen
+import com.example.hiemapp.ui.parent.ParentHomeScreen // Import ParentHomeScreen
 
 // Định nghĩa các đường dẫn (routes) để tránh lỗi chính tả
 object Routes {
     const val LOGIN = "login_screen" // Đặt tên rõ ràng hơn
     const val REGISTER = "register_screen"
-    const val MAIN_APP = "main_app_screen"
+    const val PARENT_HOME = "parent_home_screen" // Sửa lại tên
 }
 
 @Composable
@@ -54,7 +55,7 @@ fun AppNavigation() {
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         // Xử lý kết quả trả về từ Google Sign In Activity
-        if (result.resultCode == RESULT_OK) {
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
                 // Lấy tài khoản Google thành công
@@ -78,18 +79,28 @@ fun AppNavigation() {
         }
     }
 
-    // Hàm lambda để khởi chạy luồng Google Sign In
     val launchGoogleSignIn: () -> Unit = {
         authViewModel.clearError() // Xóa lỗi cũ trước khi bắt đầu
         Log.d("AppNavigation", "Launching Google Sign In Intent...")
-        val signInIntent = googleSignInClient.signInIntent
-        googleSignInLauncher.launch(signInIntent)
+
+        if (googleSignInClient != null) {
+            val signInIntent = googleSignInClient.signInIntent
+            if (signInIntent != null) {
+                googleSignInLauncher.launch(signInIntent)
+            } else {
+                Log.e("AppNavigation", "signInIntent is null! Check Google Sign-In configuration.")
+                authViewModel.setExternalError("Không thể tạo Intent đăng nhập Google. Vui lòng kiểm tra cấu hình.")
+            }
+        } else {
+            Log.e("AppNavigation", "googleSignInClient is null! Check Web Client ID.")
+            authViewModel.setExternalError("Chưa cấu hình Google Sign-In. Vui lòng kiểm tra Web Client ID.")
+        }
     }
 
     // --- Xác định màn hình bắt đầu dựa trên trạng thái đăng nhập ---
     val startDestination = if (auth.currentUser != null) {
-        Log.d("AppNavigation", "User already logged in: ${auth.currentUser?.email}. Starting at MAIN_APP.")
-        Routes.MAIN_APP
+        Log.d("AppNavigation", "User already logged in: ${auth.currentUser?.email}. Starting at PARENT_HOME.")
+        Routes.PARENT_HOME
     } else {
         Log.d("AppNavigation", "User not logged in. Starting at LOGIN.")
         Routes.LOGIN
@@ -107,11 +118,11 @@ fun AppNavigation() {
                     navController.navigate(Routes.REGISTER)
                 },
                 onLoginSuccess = {
-                    Log.d("AppNavigation", "Login Successful, navigating to MAIN_APP")
+                    Log.d("AppNavigation", "Login Successful, navigating to PARENT_HOME")
                     // Đi đến màn hình chính, xóa hết backstack cũ liên quan đến auth
-                    navController.navigate(Routes.MAIN_APP) {
+                    navController.navigate(Routes.PARENT_HOME) {
                         popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
+                        // launchSingleTop = true // Không cần thiết khi đang popUpTo
                     }
                 },
                 onGoogleSignInClicked = launchGoogleSignIn // Truyền hàm để gọi Google Sign In
@@ -131,32 +142,18 @@ fun AppNavigation() {
                     authViewModel.clearError()
                     // Sau khi đăng ký thành công, quay lại Login để người dùng đăng nhập
                     navController.popBackStack()
-                    // Hoặc bạn có thể tự động đăng nhập và chuyển đến MAIN_APP nếu muốn
+                    // Hoặc bạn có thể tự động đăng nhập và chuyển đến PARENT_HOME nếu muốn
                 }
             )
         }
 
-        // Định nghĩa màn hình Chính của ứng dụng
-        composable(Routes.MAIN_APP) {
-            // Thay thế bằng màn hình chính thực sự của bạn sau này
-            MainAppPlaceholderScreen(
-                navController = navController,
-                onSignOut = {
-                    Log.d("AppNavigation", "Signing out...")
-                    authViewModel.clearError() // Xóa trạng thái lỗi cũ
-                    auth.signOut() // Đăng xuất khỏi Firebase Auth
-                    // Quan trọng: Đăng xuất khỏi Google Sign In để lần sau hiện cửa sổ chọn tài khoản
-                    googleSignInClient.signOut().addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            Log.d("AppNavigation", "Google Sign Out successful.")
-                        } else {
-                            Log.w("AppNavigation", "Google Sign Out failed.")
-                        }
-                        // Luôn điều hướng về Login sau khi đăng xuất
-                        navController.navigate(Routes.LOGIN) {
-                            popUpTo(Routes.MAIN_APP) { inclusive = true } // Xóa màn hình chính khỏi backstack
-                            launchSingleTop = true
-                        }
+        // Định nghĩa màn hình chính của ứng dụng (Parent Home)
+        composable(Routes.PARENT_HOME) {
+            ParentHomeScreen(
+                onNavigateToLogin = {
+                    // Điều hướng về màn hình đăng nhập và xóa mọi thứ khỏi back stack
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )
@@ -165,22 +162,21 @@ fun AppNavigation() {
 }
 
 // --- Hàm Helper để tạo GoogleSignInClient ---
-private fun getGoogleSignInClient(context: Context): GoogleSignInClient {
+private fun getGoogleSignInClient(context: Context): GoogleSignInClient? {
     Log.d("AppNavigation", "Creating GoogleSignInClient...")
     // Dòng này là nơi có thể xảy ra lỗi NPE nếu context null hoặc R.string không đúng
     val webClientId = try {
         context.getString(R.string.default_web_client_id)
     } catch (e: Exception) {
         Log.e("AppNavigation", "Error getting default_web_client_id from resources", e)
-        // Xử lý lỗi: Có thể throw lỗi rõ ràng hơn hoặc trả về giá trị mặc định không hợp lệ để gây lỗi sau này
-        // Hoặc bạn có thể hardcode tạm thời ID ở đây để test, nhưng KHÔNG NÊN làm vậy trong code production
-        throw IllegalStateException("Could not retrieve default_web_client_id. Check strings.xml and context.", e)
-        // "" // Trả về chuỗi rỗng để tránh NPE ngay lập tức, nhưng sẽ gây lỗi khi tạo GSO
+        // Xử lý lỗi: Hiển thị thông báo lỗi thân thiện thay vì crash
+        // throw IllegalStateException("Could not retrieve default_web_client_id. Check strings.xml and context.", e)
+        return null // Hoặc trả về null và xử lý ở nơi gọi
     }
 
-    if (webClientId.isEmpty() || !webClientId.endsWith(".apps.googleusercontent.com")) {
+    if (webClientId == null || webClientId.isEmpty() || !webClientId.endsWith(".apps.googleusercontent.com")) {
         Log.e("AppNavigation", "Invalid default_web_client_id: $webClientId. Check strings.xml.")
-        // Có thể throw lỗi ở đây
+        // Có thể throw lỗi ở đây, hoặc xử lý ở nơi gọi
         throw IllegalArgumentException("Invalid default_web_client_id configured in strings.xml.")
     }
 
@@ -192,13 +188,14 @@ private fun getGoogleSignInClient(context: Context): GoogleSignInClient {
     return GoogleSignIn.getClient(context, gso)
 }
 
-
 // --- Placeholder cho Màn hình Chính ---
 @Composable
 fun MainAppPlaceholderScreen(navController: NavHostController, onSignOut: () -> Unit) {
     val user = FirebaseAuth.getInstance().currentUser
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
